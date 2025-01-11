@@ -16,6 +16,10 @@ using System.Text;
 using Microsoft.AspNetCore.Authentication;
 using System.Net.Mail;
 using System.Net;
+using Microsoft.AspNet.Identity.Owin;
+using Microsoft.Extensions.Primitives;
+using Microsoft.Extensions.Logging;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
 
 namespace HotelHyatt.Controllers
 {
@@ -25,13 +29,16 @@ namespace HotelHyatt.Controllers
         private readonly HotelHyattContext _context;
         private readonly UserManager<IdentityUser> _userManager;
         private readonly ILogger<HomeController> _logger;
+        private readonly SignInManager<IdentityUser> _signInManager;
         public BookingsController(HotelHyattContext context,
             UserManager<IdentityUser> userManager,
-            ILogger<HomeController> logger)
+            ILogger<HomeController> logger,
+            SignInManager<IdentityUser> signInManager)
         {
             _userManager = userManager;
             _context = context;
             _logger = logger;
+            _signInManager = signInManager;
         }
 
         // GET: Bookings
@@ -75,7 +82,26 @@ namespace HotelHyatt.Controllers
         {
             if (ModelState.IsValid)
             {
-                
+                using (var client = new SmtpClient())
+                {
+                    client.Host = "smtp.gmail.com";
+                    client.Port = 587;
+                    client.DeliveryMethod = SmtpDeliveryMethod.Network;
+                    client.UseDefaultCredentials = false;
+                    client.EnableSsl = true;
+                    client.Credentials = new NetworkCredential("nomn28097@gmail.com", "xrmbohiqvergwzbd");
+                    using (var message = new MailMessage(
+                        from: new MailAddress("nomn28097@gmail.com", "mohamed idrissi"),
+                        to: new MailAddress(GetCurrentUser().Email, GetCurrentUser().Email)
+                        ))
+                    {
+
+                        message.Subject = "Hotel Hyatt Réservation";
+                        message.Body = $"Tu as Réserver dans notre hotel avec succes, merci.";
+
+                        client.Send(message);
+                    }
+                }
                 _context.Add(booking);
                 await _context.SaveChangesAsync();
                 return RedirectToAction(nameof(Index));
@@ -253,6 +279,19 @@ namespace HotelHyatt.Controllers
             }
         }
 
-        
+        public IdentityUser GetCurrentUser()
+        {
+            IdentityUser user = _signInManager.UserManager.Users.ElementAt(0);
+            _logger.LogInformation(_signInManager.UserManager.Users.Count().ToString());
+            foreach (var item in _signInManager.UserManager.Users)
+            {
+                if (HttpContext.User.Identity.Name == item.UserName)
+                {
+                    _logger.LogInformation(item.Email);
+                    user = item;
+                }
+            }
+            return user;
+        }
     }
 }
